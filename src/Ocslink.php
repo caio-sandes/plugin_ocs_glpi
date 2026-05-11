@@ -669,16 +669,23 @@ class Ocslink extends CommonDBTM
     {
         global $DB;
 
-        $link = new $item->input['itemtype']();
-        if (!$link->getFromDB($item->input['items_id'])) {
+        $itemtype = $item->input['itemtype_peripheral'] ?? $item->input['itemtype'] ?? null;
+        $items_id = $item->input['items_id_peripheral'] ?? $item->input['items_id'] ?? null;
+
+        if ($itemtype === null || $items_id === null || !class_exists($itemtype)) {
+            return false;
+        }
+
+        $link = new $itemtype();
+        if (!$link->getFromDB($items_id)) {
             return false;
         }
         if (!$link->getField('is_global')) {
             // Handle case where already used, should never happen (except from OCS sync)
             $query  = "SELECT `id`, `items_id_asset`
                    FROM `glpi_assets_assets_peripheralassets`
-                   WHERE `items_id_peripheral` = " . $item->input['items_id'] . "
-                         AND `itemtype_peripheral` = '" . $item->input['itemtype'] . "'
+                   WHERE `items_id_peripheral` = " . $items_id . "
+                         AND `itemtype_peripheral` = '" . $itemtype . "'
                          AND `itemtype_asset` = 'Computer'";
             $result = $DB->doQuery($query);
 
@@ -812,12 +819,16 @@ class Ocslink extends CommonDBTM
 
         global $DB;
         $dbu = new DbUtils();
-        if ($device = $dbu->getItemForItemtype($comp->fields['itemtype'])) {
-            if ($device->getFromDB($comp->fields['items_id'])) {
+        $itemtype = $comp->fields['itemtype_peripheral'] ?? $comp->fields['itemtype'] ?? null;
+        $items_id = $comp->fields['items_id_peripheral'] ?? $comp->fields['items_id'] ?? null;
+        $computers_id = $comp->fields['items_id_asset'] ?? $comp->fields['computers_id'] ?? null;
+
+        if ($itemtype !== null && $items_id !== null && ($device = $dbu->getItemForItemtype($itemtype))) {
+            if ($device->getFromDB($items_id)) {
                 if (isset($comp->input['_ocsservers_id'])) {
                     $ocsservers_id = $comp->input['_ocsservers_id'];
                 } else {
-                    $ocsservers_id = OcsServer::getServerByComputerID($comp->fields['computers_id']);
+                    $ocsservers_id = $computers_id !== null ? OcsServer::getServerByComputerID($computers_id) : 0;
                 }
 
                 if ($ocsservers_id > 0) {
@@ -827,7 +838,7 @@ class Ocslink extends CommonDBTM
                     //Get the management mode for this device
                     $mode     = OcsServer::getDevicesManagementMode(
                         $ocs_config,
-                        $comp->fields['itemtype']
+                        $itemtype
                     );
                     $decoConf = $ocs_config["deconnection_behavior"];
 
