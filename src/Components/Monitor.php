@@ -232,25 +232,25 @@ class Monitor
                                     'LEFT JOIN'       => [
                                         'glpi_assets_assets_peripheralassets' => [
                                             'ON' => [
-                                                'glpi_peripherals'   => 'id',
+                                                'glpi_monitors'   => 'id',
                                                 'glpi_assets_assets_peripheralassets'                  => 'items_id_peripheral', [
                                                     'AND' => [
                                                         'glpi_assets_assets_peripheralassets.itemtype_peripheral' => 'Monitor',
+                                                        'glpi_assets_assets_peripheralassets.itemtype_asset' => 'Computer',
                                                     ],
                                                 ],
                                             ]
                                         ],
                                     ],
                                     'WHERE' => [
-                                        'glpi_peripherals.name' => $mon["name"],
-                                        'glpi_assets_assets_peripheralassets.is_global' => 0,
-                                        'glpi_assets_assets_peripheralassets.items_id_asset' => null,
-                                        'glpi_assets_assets_peripheralassets.itemtype_asset' => 'Computer',
+                                        'glpi_monitors.name' => $mon["name"],
+                                        'glpi_monitors.is_global' => MANAGEMENT_UNITARY,
+                                        'glpi_assets_assets_peripheralassets.id' => null,
                                     ]
                                 ];
 
                                 if (Entity::getUsedConfig('transfers_strategy', $entity, 'transfers_id', 0) < 1) {
-                                    $criteria['WHERE'] = $criteria['WHERE'] + ['entities_id' => $entity];
+                                    $criteria['WHERE'] = $criteria['WHERE'] + ['glpi_monitors.entities_id' => $entity];
                                 }
 
                                 $iterator = $DB->request($criteria);
@@ -277,7 +277,7 @@ class Monitor
                         $conn->add(['items_id_asset' => $computers_id,
                             'itemtype_asset'     => 'Computer',
                             'itemtype_peripheral'      => 'Monitor',
-                            'items_id'     => $id_monitor,
+                            'items_id_peripheral'     => $id_monitor,
                             'is_dynamic'   => 1,
                             'is_deleted'   => 0], [], $install_history);
                         $already_processed[] = $id_monitor;
@@ -323,7 +323,7 @@ class Monitor
                     ],
                 ];
                 if (!empty($already_processed)) {
-                    $criteria['WHERE'] = $criteria['WHERE'] + ['items_id_asset' => ['NOT IN', $already_processed]];
+                    $criteria['WHERE'] = $criteria['WHERE'] + ['items_id_peripheral' => ['NOT IN', $already_processed]];
                 }
                 $iterator = $DB->request($criteria);
                 foreach ($iterator as $data) {
@@ -408,14 +408,16 @@ class Monitor
                     'FROM' => 'glpi_assets_assets_peripheralassets',
                     'WHERE' => [
                         'itemtype_peripheral' => 'Monitor',
-                        'items_id_peripheral' => $data['items_id_asset'],
+                        'items_id_peripheral' => $data['items_id_peripheral'],
                     ],
                 ];
                 $iterator = $DB->request($criteria);
 
                 $mon = new \Monitor();
-                if (count($iterator) == 1) {
-                    $mon->delete(['id' => $data['items_id_asset'], '_no_history' => !$uninstall_history], true, $uninstall_history);
+                foreach ($iterator as $count) {
+                    if ((int) $count['cpt'] === 0) {
+                        $mon->delete(['id' => $data['items_id_peripheral'], '_no_history' => !$uninstall_history], true, $uninstall_history);
+                    }
                 }
             }
         }
